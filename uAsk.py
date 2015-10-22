@@ -38,11 +38,11 @@ class BasePostAPI(Resource):
 		self.reqparse.add_argument('tags', type=list, default=[], location='json')
 		self.reqparse.add_argument('echo', type=int, required=required, location='json')
 		self.reqparse.add_argument('dislike', type=int, required=required, location='json')
-		#super(self.__class__, self).__init__()
+		super(BasePostAPI, self).__init__()
 
 class PostListAPI(BasePostAPI):
 	def __init__(self):
-		super(self.__class__, self).__init__(True)
+		super(PostListAPI, self).__init__(True)
 
 	# get all posts 
 	def get(self):
@@ -67,7 +67,7 @@ class PostListAPI(BasePostAPI):
 # operations on one post
 class PostAPI(BasePostAPI):
 	def __init__(self):
-		super(self.__class__, self).__init__(required=False)
+		super(PostAPI, self).__init__(False)
 
 	# get post with id
 	def get(self, id):
@@ -85,7 +85,7 @@ class PostAPI(BasePostAPI):
 		for k, v in args.iteritems():
 			if v != None:
 				post[k] = v
-		mongo.db.post.update_one({'_id': post['_id']}, {'$set': post})
+		mongo.db.post.update_one({'_id': id}, {'$set': post})
 		return post
 
 	# delete post with id
@@ -99,7 +99,7 @@ class ReplyListAPI(Resource):
 		self.reqparse.add_argument('postID', type=ObjectId, required=True, location='json')
 		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
 		self.reqparse.add_argument('timestamp', type=str, required=True, location='json')
-		super(self.__class__, self).__init__()
+		super(ReplyListAPI, self).__init__()
 
 	def get(self):
 		postId = request.args.get('postId', type=str)
@@ -119,7 +119,7 @@ class ReplyAPI(Resource):
 		self.reqparse.add_argument('postID', type=ObjectId, required=True, location='json')
 		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
 		self.reqparse.add_argument('timestamp', type=str, required=False, location='json')
-		super(self.__class__, self).__init__()
+		super(ReplyAPI, self).__init__()
 
 	def get(self, id):
 		reply = mongo.db.reply.find_one({'_id': id})
@@ -136,7 +136,7 @@ class ReplyAPI(Resource):
 		for k, v in args.iteritems():
 			if v != None:
 				reply[k] = v
-		mongo.db.reply.update_one({'_id': reply['_id']}, {'$set': reply})
+		mongo.db.reply.update_one({'_id': id}, {'$set': reply})
 		return reply
 
 	def delete(self, id):
