@@ -16,6 +16,9 @@ def output_json(obj, code, headers=None):
 	that knows how to translate MongoDB types to JSON.
 	"""
 	resp = make_response(json_util.dumps(obj), code)
+	resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+	resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+	resp.headers['Access-Control-Allow-Origin'] = '*'
 	resp.headers.extend(headers or {})
 	return resp
 DEFAULT_REPRESENTATIONS = {'application/json': output_json}
@@ -96,15 +99,16 @@ class PostAPI(BasePostAPI):
 class ReplyListAPI(Resource):
 	def __init__(self):
 		self.reqparse = reqparse.RequestParser()
-		self.reqparse.add_argument('postID', type=ObjectId, required=True, location='json')
+		self.reqparse.add_argument('postId', type=ObjectId, required=True, location='json')
 		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
 		self.reqparse.add_argument('timestamp', type=str, required=True, location='json')
 		super(ReplyListAPI, self).__init__()
 
 	def get(self):
-		postId = request.args.get('postId', type=str)
-		postId = ObjectId(postId)
-		cursor = mongo.db.reply.find({'postId': postId}).sort([('timestamp', 1)])
+		postId = request.args.get('postId', type=ObjectId)
+		# allow null postId, i.e. get all replies
+		query = {} if not postId else {'postId': postId}
+		cursor = mongo.db.reply.find(query).sort([('timestamp', 1)])
 		return cursor
 
 	def post(self):
@@ -116,7 +120,7 @@ class ReplyListAPI(Resource):
 class ReplyAPI(Resource):
 	def __init__(self):
 		self.reqparse = reqparse.RequestParser()
-		self.reqparse.add_argument('postID', type=ObjectId, required=True, location='json')
+		self.reqparse.add_argument('postId', type=ObjectId, required=False, location='json')
 		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
 		self.reqparse.add_argument('timestamp', type=str, required=False, location='json')
 		super(ReplyAPI, self).__init__()
