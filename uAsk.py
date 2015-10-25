@@ -1,13 +1,17 @@
 from flask import Flask, request, abort
 from flask.ext.restful import Api, Resource, reqparse
 from flask.ext.pymongo import PyMongo
+from flask.ext.cors import CORS
 from bson.objectid import ObjectId
 
 from flask import make_response
-from bson import json_util
+import json_util
 
 app = Flask(__name__)
 api = Api(app)
+
+# allow CORS for all domains on all routes.
+CORS(app)
 
 # customized json dumper for mongodb objects
 def output_json(obj, code, headers=None):
@@ -16,9 +20,10 @@ def output_json(obj, code, headers=None):
 	that knows how to translate MongoDB types to JSON.
 	"""
 	resp = make_response(json_util.dumps(obj), code)
-	resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-	resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-	resp.headers['Access-Control-Allow-Origin'] = '*'
+	# not needed any more. CORS will take care of these headers
+	# resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+	# resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+	# resp.headers['Access-Control-Allow-Origin'] = '*'
 	resp.headers.extend(headers or {})
 	return resp
 DEFAULT_REPRESENTATIONS = {'application/json': output_json}
@@ -36,8 +41,9 @@ class BasePostAPI(Resource):
 		self.reqparse.add_argument('head', type=str, required=required, location='json')
 		self.reqparse.add_argument('headLastChar', type=str, required=required, location='json')
 		self.reqparse.add_argument('desc', type=str, required=required, location='json')
+		self.reqparse.add_argument('linkedDesc', type=str, required=required, location='json')
 		self.reqparse.add_argument('completed', type=bool, required=required, location='json')
-		self.reqparse.add_argument('timestamp', type=str, required=required, location='json')
+		self.reqparse.add_argument('timestamp', type=int, required=required, location='json')
 		self.reqparse.add_argument('tags', type=list, default=[], location='json')
 		self.reqparse.add_argument('echo', type=int, required=required, location='json')
 		self.reqparse.add_argument('dislike', type=int, required=required, location='json')
@@ -61,7 +67,8 @@ class PostListAPI(BasePostAPI):
 	# create a new post
 	def post(self):
 		# check whether the data is valid
-		args = self.reqparse.parse_args()
+		#args = self.reqparse.parse_args() # exclude args not in the parser
+		args = request.get_json(force=True) # allow all args
 		mongo.db.post.insert(args)
 		# if inserted successfully, return last inserted document
 		cursor = mongo.db.post.find().sort([('_id', -1)]).limit(1)
@@ -150,9 +157,9 @@ class ReplyAPI(Resource):
 		ret = mongo.db.reply.remove({'_id': id})
 		return ret
 
-api.add_resource(PostListAPI, '/api/posts', endpoint='posts')
+api.add_resource(PostListAPI, '/api/post', endpoint='posts')
 api.add_resource(PostAPI, '/api/post/<ObjectId:id>', endpoint='post')
-api.add_resource(ReplyListAPI, '/api/replies', endpoint='replies')
+api.add_resource(ReplyListAPI, '/api/reply', endpoint='replies')
 api.add_resource(ReplyAPI, '/api/reply/<ObjectId:id>', endpoint='reply')
 
 if __name__ == '__main__':
