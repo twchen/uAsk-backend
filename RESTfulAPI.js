@@ -1,6 +1,6 @@
 'use strict';
 
-todomvc.factory("RESTfulAPI", function($resource)
+todomvc.factory("RESTfulAPI", ['$resource', function($resource)
 {
   var api = {};
   var baseURL = "http://52.74.132.232:5000/api/";
@@ -81,4 +81,4 @@ todomvc.factory("RESTfulAPI", function($resource)
   
 
   return api;
-});
+}]);

@@ -44,9 +44,14 @@ class BasePostAPI(Resource):
 		self.reqparse.add_argument('linkedDesc', type=str, required=required, location='json')
 		self.reqparse.add_argument('completed', type=bool, required=required, location='json')
 		self.reqparse.add_argument('timestamp', type=int, required=required, location='json')
-		self.reqparse.add_argument('tags', type=list, default=[], location='json')
+		#self.reqparse.add_argument('tags', type=list, default=[], location='json')
+		self.reqparse.add_argument('tags', type=str, required=required, location='json')
 		self.reqparse.add_argument('echo', type=int, required=required, location='json')
-		self.reqparse.add_argument('dislike', type=int, required=required, location='json')
+		self.reqparse.add_argument('hate', type=int, required=required, location='json')
+		self.reqparse.add_argument('preMsg', type=str, required=required, location='json')
+		self.reqparse.add_argument('new_reply', type=str, default='' location='json')
+		self.reqparse.add_argument('order', type=int, required=required, location='json')
+		#self.reqparse.add_argument('dislike', type=int, required=required, location='json')
 		super(BasePostAPI, self).__init__()
 
 class PostListAPI(BasePostAPI):
@@ -67,8 +72,8 @@ class PostListAPI(BasePostAPI):
 	# create a new post
 	def post(self):
 		# check whether the data is valid
-		#args = self.reqparse.parse_args() # exclude args not in the parser
-		args = request.get_json(force=True) # allow all args
+		args = self.reqparse.parse_args() # exclude args not in the parser
+		#args = request.get_json(force=True) # allow all args
 		mongo.db.post.insert(args)
 		# if inserted successfully, return last inserted document
 		cursor = mongo.db.post.find().sort([('_id', -1)]).limit(1)
@@ -108,7 +113,7 @@ class ReplyListAPI(Resource):
 		self.reqparse = reqparse.RequestParser()
 		self.reqparse.add_argument('postId', type=ObjectId, required=True, location='json')
 		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
-		self.reqparse.add_argument('timestamp', type=str, required=True, location='json')
+		self.reqparse.add_argument('timestamp', type=int, required=True, location='json')
 		super(ReplyListAPI, self).__init__()
 
 	def get(self):
