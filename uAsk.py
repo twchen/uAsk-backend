@@ -4,11 +4,16 @@ from flask.ext.pymongo import PyMongo
 from flask.ext.cors import CORS
 from bson.objectid import ObjectId
 
+from flask.ext.socketio import SocketIO, join_room, leave_room
+
 from flask import make_response
 import json_util
 
 app = Flask(__name__)
 api = Api(app)
+
+app.config['SECRET_KEY'] = 'secret!'
+socketio = SocketIO(app)
 
 # allow CORS for all domains on all routes.
 CORS(app)
@@ -49,7 +54,7 @@ class BasePostAPI(Resource):
 		self.reqparse.add_argument('echo', type=int, required=required, location='json')
 		self.reqparse.add_argument('hate', type=int, required=required, location='json')
 		self.reqparse.add_argument('preMsg', type=str, required=required, location='json')
-		self.reqparse.add_argument('new_reply', type=str, default='' location='json')
+		self.reqparse.add_argument('new_reply', type=str, default='', location='json')
 		self.reqparse.add_argument('order', type=int, required=required, location='json')
 		#self.reqparse.add_argument('dislike', type=int, required=required, location='json')
 		super(BasePostAPI, self).__init__()
@@ -77,6 +82,7 @@ class PostListAPI(BasePostAPI):
 		mongo.db.post.insert(args)
 		# if inserted successfully, return last inserted document
 		cursor = mongo.db.post.find().sort([('_id', -1)]).limit(1)
+		socketio.emit('new post', json_util.dumps(cursor[0]), room=cursor[0]['roomName'])
 		return cursor[0]
 
 # operations on one post
@@ -162,10 +168,28 @@ class ReplyAPI(Resource):
 		ret = mongo.db.reply.remove({'_id': id})
 		return ret
 
+@socketio.on('connect')
+def test_connect():
+	print 'Client connected'
+
+@socketio.on('join')
+def on_join(data):
+	room = data['room']
+	join_room(room)
+	print 'Client joined room ' + room; 
+
+@socketio.on('leave')
+def on_leave(data):
+	room = data['room']
+	leave_room(room)
+	print 'Client left room ' + room
+
 api.add_resource(PostListAPI, '/api/post', endpoint='posts')
 api.add_resource(PostAPI, '/api/post/<ObjectId:id>', endpoint='post')
 api.add_resource(ReplyListAPI, '/api/reply', endpoint='replies')
 api.add_resource(ReplyAPI, '/api/reply/<ObjectId:id>', endpoint='reply')
 
 if __name__ == '__main__':
-	app.run(debug=True, host='0.0.0.0')
+	#app.run(debug=True, host='0.0.0.0')
+	socketio.run(app, host='0.0.0.0')
+
