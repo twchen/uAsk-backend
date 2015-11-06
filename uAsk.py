@@ -114,6 +114,17 @@ class PostAPI(BasePostAPI):
 		ret = mongo.db.post.remove({'_id': id})
 		return ret
 
+# operations on same questionroomname post
+class PostRoomAPI(BasePostAPI):
+
+	def __init__(self):
+		super(PostRoomAPI, self).__init__(True)
+
+	# get room posts 
+	def get(self,roomName):
+		cursor = mongo.db.post.find({'roomName':roomName})
+		return cursor
+
 class ReplyListAPI(Resource):
 	def __init__(self):
 		self.reqparse = reqparse.RequestParser()
@@ -168,6 +179,7 @@ class ReplyAPI(Resource):
 		ret = mongo.db.reply.remove({'_id': id})
 		return ret
 
+
 @socketio.on('connect')
 def test_connect():
 	print 'Client connected'
@@ -184,12 +196,15 @@ def on_leave(data):
 	leave_room(room)
 	print 'Client left room ' + room
 
-api.add_resource(PostListAPI, '/api/post', endpoint='posts')
-api.add_resource(PostAPI, '/api/post/<ObjectId:id>', endpoint='post')
-api.add_resource(ReplyListAPI, '/api/reply', endpoint='replies')
-api.add_resource(ReplyAPI, '/api/reply/<ObjectId:id>', endpoint='reply')
+api.add_resource(PostListAPI, '/api/posts', endpoint='posts')
+
+#get JSON via questionroom name
+api.add_resource(PostRoomAPI,'/api/posts/<string:roomName>', endpoint='postss')
+
+api.add_resource(PostAPI, '/api/posts/<ObjectId:id>', endpoint='post')
+api.add_resource(ReplyListAPI, '/api/replies', endpoint='replies')
+api.add_resource(ReplyAPI, '/api/replies/<ObjectId:id>', endpoint='reply')
 
 if __name__ == '__main__':
 	#app.run(debug=True, host='0.0.0.0')
 	socketio.run(app, host='0.0.0.0')
-
