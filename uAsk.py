@@ -57,7 +57,7 @@ class BasePostAPI(Resource):
 		self.reqparse.add_argument('new_reply', type=str, default='', location='json')
 		self.reqparse.add_argument('order', type=int, required=required, location='json')
 		#self.reqparse.add_argument('dislike', type=int, required=required, location='json')
-		self.reqparse.add_argument('image', type=str, default="", location='json')
+		self.reqparse.add_argument('image', type=str, default='', location='json')
 		super(BasePostAPI, self).__init__()
 
 class PostListAPI(BasePostAPI):
