@@ -195,7 +195,7 @@ def on_like_post(data):
 	post = mongo.db.posts.find_one({'_id': id})
 	if post:
 		post['echo'] = post['echo'] + 1
-		post['order'] = post['order'] - 1
+		post['order'] = post['order'] +1
 		mongo.db.posts.update_one({'_id': id}, {'$set': post})
 		socketio.emit('like post', {
 				'id': data['id'],
@@ -211,7 +211,7 @@ def on_dislike_post(data):
 	post = mongo.db.posts.find_one({'_id': id})
 	if post:
 		post['hate'] = post['hate'] + 1
-		post['order'] = post['order'] + 1
+		post['order'] = post['order'] -1
 		mongo.db.posts.update_one({'_id': id}, {'$set': post})
 		socketio.emit('dislike post', {
 				'id': data['id'],
