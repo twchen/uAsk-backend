@@ -71,7 +71,7 @@ class PostListAPI(BasePostAPI):
 		order = request.args.get('order', 1, type=int)
 		limit = request.args.get('limit', 10000, type=int)
 		query = {} if roomName == 'all' else {'roomName': roomName}
-		cursor = mongo.db.post.find(query).sort([(sortBy, order)]).limit(limit)
+		cursor = mongo.db.posts.find(query).sort([(sortBy, order)]).limit(limit)
 		return cursor
 
 	# create a new post
@@ -79,9 +79,9 @@ class PostListAPI(BasePostAPI):
 		# check whether the data is valid
 		args = self.reqparse.parse_args() # exclude args not in the parser
 		#args = request.get_json(force=True) # allow all args
-		mongo.db.post.insert(args)
+		mongo.db.posts.insert(args)
 		# if inserted successfully, return last inserted document
-		cursor = mongo.db.post.find().sort([('_id', -1)]).limit(1)
+		cursor = mongo.db.posts.find().sort([('_id', -1)]).limit(1)
 		socketio.emit('new post', json_util.dumps(cursor[0]), room=cursor[0]['roomName'])
 		return cursor[0]
 
@@ -92,26 +92,26 @@ class PostAPI(BasePostAPI):
 
 	# get post with id
 	def get(self, id):
-		post = mongo.db.post.find_one({'_id': id})
+		post = mongo.db.posts.find_one({'_id': id})
 		if not post:
 			abort(404)
 		return post
 
 	# update post with id
 	def put(self, id):
-		post = mongo.db.post.find_one({'_id': id})
+		post = mongo.db.posts.find_one({'_id': id})
 		if not post:
 			abort(404)
 		args = self.reqparse.parse_args()
 		for k, v in args.iteritems():
 			if v != None:
 				post[k] = v
-		mongo.db.post.update_one({'_id': id}, {'$set': post})
+		mongo.db.posts.update_one({'_id': id}, {'$set': post})
 		return post
 
 	# delete post with id
 	def delete(self, id):
-		ret = mongo.db.post.remove({'_id': id})
+		ret = mongo.db.posts.remove({'_id': id})
 		return ret
 
 class ReplyListAPI(Resource):
@@ -126,13 +126,13 @@ class ReplyListAPI(Resource):
 		postId = request.args.get('postId', type=ObjectId)
 		# allow null postId, i.e. get all replies
 		query = {} if not postId else {'postId': postId}
-		cursor = mongo.db.reply.find(query).sort([('timestamp', 1)])
+		cursor = mongo.db.replies.find(query).sort([('timestamp', 1)])
 		return cursor
 
 	def post(self):
 		args = self.reqparse.parse_args()
-		mongo.db.reply.insert(args)
-		cursor = mongo.db.reply.find().sort([('_id', -1)]).limit(1)
+		mongo.db.replies.insert(args)
+		cursor = mongo.db.replies.find().sort([('_id', -1)]).limit(1)
 		return cursor[0]
 
 class ReplyAPI(Resource):
@@ -144,7 +144,7 @@ class ReplyAPI(Resource):
 		super(ReplyAPI, self).__init__()
 
 	def get(self, id):
-		reply = mongo.db.reply.find_one({'_id': id})
+		reply = mongo.db.replies.find_one({'_id': id})
 		if not reply:
 			abort(404)
 		else:
@@ -152,20 +152,20 @@ class ReplyAPI(Resource):
 
 	def put(self, id):
 		args = self.reqparse.parse_args()
-		reply = mongo.db.reply.find_one({'_id': id})
+		reply = mongo.db.replies.find_one({'_id': id})
 		if not reply:
 			abort(404)
 		for k, v in args.iteritems():
 			if v != None:
 				reply[k] = v
-		mongo.db.reply.update_one({'_id': id}, {'$set': reply})
+		mongo.db.replies.update_one({'_id': id}, {'$set': reply})
 		return reply
 
 	def delete(self, id):
-		reply = mongo.db.reply.find({'_id': id})
+		reply = mongo.db.replies.find({'_id': id})
 		if not reply:
 			abort(404)
-		ret = mongo.db.reply.remove({'_id': id})
+		ret = mongo.db.replies.remove({'_id': id})
 		return ret
 
 @socketio.on('connect')
@@ -183,6 +183,42 @@ def on_leave(data):
 	room = data['room']
 	leave_room(room)
 	print 'Client left room ' + room
+
+@socketio.on('del post')
+def on_del_post(data):
+	socketio.emit('del post', data['id'], room=data['room'])
+
+@socketio.on('like post')
+def on_like_post(data):
+	id = ObjectId(data['id'])
+	post = mongo.db.posts.find_one({'_id': id})
+	if post:
+		post['echo'] = post['echo'] + 1
+		post['order'] = post['order'] - 1
+		mongo.db.posts.update_one({'_id': id}, {'$set': post})
+		socketio.emit('like post', {
+				'id': data['id'],
+				'like': post['echo'],
+				'order': post['order']
+			}, room=data['room'])
+	else:
+		print "liked post not found"
+
+@socketio.on('dislike post')
+def on_dislike_post(data):
+	id = ObjectId(data['id'])
+	post = mongo.db.posts.find_one({'_id': id})
+	if post:
+		post['hate'] = post['hate'] + 1
+		post['order'] = post['order'] + 1
+		mongo.db.posts.update_one({'_id': id}, {'$set': post})
+		socketio.emit('dislike post', {
+				'id': data['id'],
+				'dislike': post['hate'],
+				'order': post['order']
+			}, room=data['room'])
+	else:
+		print "disliked post not found"
 
 api.add_resource(PostListAPI, '/api/posts', endpoint='posts')
 api.add_resource(PostAPI, '/api/posts/<ObjectId:id>', endpoint='post')
