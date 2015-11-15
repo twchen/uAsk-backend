@@ -46,18 +46,18 @@ class BasePostAPI(Resource):
 		self.reqparse.add_argument('head', type=str, required=required, location='json')
 		self.reqparse.add_argument('headLastChar', type=str, required=required, location='json')
 		self.reqparse.add_argument('desc', type=str, required=required, location='json')
-		self.reqparse.add_argument('linkedDesc', type=str, required=required, location='json')
-		self.reqparse.add_argument('completed', type=bool, required=required, location='json')
+		self.reqparse.add_argument('linkedDesc', type=str, default='', location='json')
+		self.reqparse.add_argument('completed', type=bool, default=False, location='json')
 		self.reqparse.add_argument('timestamp', type=int, required=required, location='json')
 		#self.reqparse.add_argument('tags', type=list, default=[], location='json')
-		self.reqparse.add_argument('tags', type=str, required=required, location='json')
-		self.reqparse.add_argument('echo', type=int, required=required, location='json')
-		self.reqparse.add_argument('hate', type=int, required=required, location='json')
-		self.reqparse.add_argument('preMsg', type=str, required=required, location='json')
+		self.reqparse.add_argument('tags', type=str, default='', location='json')
+		self.reqparse.add_argument('echo', type=int, default=0, location='json')
+		self.reqparse.add_argument('hate', type=int, default=0, location='json')
+		self.reqparse.add_argument('preMsg', type=str, default='<pre> </pre>', location='json')
 		self.reqparse.add_argument('new_reply', type=str, default='', location='json')
-		self.reqparse.add_argument('order', type=int, required=required, location='json')
+		self.reqparse.add_argument('order', type=int, default=0, location='json')
 		#self.reqparse.add_argument('dislike', type=int, required=required, location='json')
-		self.reqparse.add_argument('image', type=str, default="", location='json')
+		self.reqparse.add_argument('image', type=str, default='', location='json')
 		super(BasePostAPI, self).__init__()
 
 class PostListAPI(BasePostAPI):
@@ -71,8 +71,20 @@ class PostListAPI(BasePostAPI):
 		sortBy = request.args.get('sortBy', 'echo') # echo means numOfLikes
 		order = request.args.get('order', 1, type=int)
 		limit = request.args.get('limit', 10000, type=int)
-		query = {} if roomName == 'all' else {'roomName': roomName}
-		cursor = mongo.db.posts.find(query).sort([(sortBy, order)]).limit(limit)
+		startTime = request.args.get('startTime', type=int)
+		endTime = request.args.get('endTime', type=int)
+		searchContent = request.args.get('content', type=str)
+		query = []
+		if roomName != 'all':
+			query.append({'roomName': roomName})
+		if startTime:
+			query.append({'timestamp': {'$gte': startTime}})
+		if endTime:
+			query.append({'timestamp': {'$lte': endTime}})
+		if searchContent:
+			query.append({'wholeMsg': {'$regex': '.*' + searchContent + '.*'}})
+			print searchContent
+		cursor = mongo.db.posts.find({'$and': query}).sort([(sortBy, order)]).limit(limit)
 		return cursor
 
 	# create a new post
