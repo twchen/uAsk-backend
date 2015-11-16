@@ -1,4 +1,4 @@
-from flask import Flask, request, abort
+from flask import Flask, request, abort,jsnotify
 from flask.ext.restful import Api, Resource, reqparse
 from flask.ext.pymongo import PyMongo
 from flask.ext.cors import CORS
@@ -33,6 +33,34 @@ api.representations = DEFAULT_REPRESENTATIONS
 # use MongoDB
 app.config['MONGO_DBNAME'] = 'questionroom'
 mongo = PyMongo(app)
+
+class UserAPI(Resource):
+	def __init__(self):
+		self.reqparse = reqparse.RequestParser()
+		self.reqparse.add_argument('username', type=str, required=True, location='json')
+		self.reqparse.add_argument('password', type=str, required=True, location='json')
+		super(UserAPI, self).__init__()
+
+	def post(self):
+		args = self.reqparse.parse_args() # check whether json has valid object, no _id, only username and password, not less than, more will be deleted
+		username = args['username'] #args is what I get
+		passwd = args['password']
+
+		temp = request.args.get('function', 'login')
+		if 	temp == 'signup' :#qy send a login json, I have to check and tell him whether the username exists already. If exist, return false; Else, insert and return true.
+			cursor = mongo.db.users.find_one({'username':username})
+			if cursor:
+				return jsonify({'result': False})#username already exists
+			else:
+				mongo.db.users.insert(args)
+				return jsonify({'result': True})
+
+		elif temp == 'login':#qy send a login json, I have to check and tell him whether login successfully
+			cursor = mongo.db.users.find_one({'username':username , 'password' :passwd})
+			if cursor:
+				return jsonify({'result': True})#login success
+			else:
+				return jsonify({'result': False})
 
 class BasePostAPI(Resource):
 	def __init__(self, required):
@@ -187,6 +215,7 @@ api.add_resource(PostListAPI, '/api/posts', endpoint='posts')
 api.add_resource(PostAPI, '/api/posts/<ObjectId:id>', endpoint='post')
 api.add_resource(ReplyListAPI, '/api/replies', endpoint='replies')
 api.add_resource(ReplyAPI, '/api/replies/<ObjectId:id>', endpoint='reply')
+api.add_resource(UserAPI, '/api/users', endpoint='users')
 
 if __name__ == '__main__':
 	app.run(debug=True, host='0.0.0.0')
