@@ -4,16 +4,12 @@ from flask.ext.pymongo import PyMongo
 from flask.ext.cors import CORS
 from bson.objectid import ObjectId
 
-from flask.ext.socketio import SocketIO, join_room, leave_room
-
 from flask import make_response
 import json_util
 
 app = Flask(__name__)
 api = Api(app)
 
-app.config['SECRET_KEY'] = 'secret!'
-socketio = SocketIO(app)
 
 # allow CORS for all domains on all routes.
 CORS(app)
@@ -84,8 +80,12 @@ class PostListAPI(BasePostAPI):
 		if searchContent:
 			query.append({'wholeMsg': {'$regex': '.*' + searchContent + '.*'}})
 			print searchContent
-		cursor = mongo.db.posts.find({'$and': query}).sort([(sortBy, order)]).limit(limit)
-		return cursor
+		query = {'$and': query} if query else {}
+		cursor = mongo.db.posts.find(query).sort([(sortBy, order)]).limit(limit)
+		posts = list(cursor)
+		for post in posts:
+			post['reply'] = mongo.db.replies.find({'postId': post['_id']}).sort([('timestamp', 1)])
+		return make_response(json_util.dumps(posts), 200)
 
 	# create a new post
 	def post(self):
@@ -94,9 +94,9 @@ class PostListAPI(BasePostAPI):
 		#args = request.get_json(force=True) # allow all args
 		mongo.db.posts.insert(args)
 		# if inserted successfully, return last inserted document
-		cursor = mongo.db.posts.find().sort([('_id', -1)]).limit(1)
-		socketio.emit('new post', json_util.dumps(cursor[0]), room=cursor[0]['roomName'])
-		return cursor[0]
+		post = mongo.db.posts.find().sort([('_id', -1)]).limit(1)[0]
+		post['reply'] = []
+		return post
 
 # operations on one post
 class PostAPI(BasePostAPI):
@@ -108,6 +108,7 @@ class PostAPI(BasePostAPI):
 		post = mongo.db.posts.find_one({'_id': id})
 		if not post:
 			abort(404)
+		post['reply'] = mongo.db.replies.find({'postId': post['_id']}).sort([('timestamp', 1)])
 		return post
 
 	# update post with id
@@ -120,6 +121,7 @@ class PostAPI(BasePostAPI):
 			if v != None:
 				post[k] = v
 		mongo.db.posts.update_one({'_id': id}, {'$set': post})
+		post['reply'] = mongo.db.replies.find({'postId': post['_id']}).sort([('timestamp', 1)])
 		return post
 
 	# delete post with id
@@ -181,64 +183,12 @@ class ReplyAPI(Resource):
 		ret = mongo.db.replies.remove({'_id': id})
 		return ret
 
-@socketio.on('connect')
-def test_connect():
-	print 'Client connected'
-
-@socketio.on('join')
-def on_join(data):
-	room = data['room']
-	join_room(room)
-	print 'Client joined room ' + room; 
-
-@socketio.on('leave')
-def on_leave(data):
-	room = data['room']
-	leave_room(room)
-	print 'Client left room ' + room
-
-@socketio.on('del post')
-def on_del_post(data):
-	socketio.emit('del post', data['id'], room=data['room'])
-
-@socketio.on('like post')
-def on_like_post(data):
-	id = ObjectId(data['id'])
-	post = mongo.db.posts.find_one({'_id': id})
-	if post:
-		post['echo'] = post['echo'] + 1
-		post['order'] = post['order'] - 1
-		mongo.db.posts.update_one({'_id': id}, {'$set': post})
-		socketio.emit('like post', {
-				'id': data['id'],
-				'like': post['echo'],
-				'order': post['order']
-			}, room=data['room'])
-	else:
-		print "liked post not found"
-
-@socketio.on('dislike post')
-def on_dislike_post(data):
-	id = ObjectId(data['id'])
-	post = mongo.db.posts.find_one({'_id': id})
-	if post:
-		post['hate'] = post['hate'] + 1
-		post['order'] = post['order'] + 1
-		mongo.db.posts.update_one({'_id': id}, {'$set': post})
-		socketio.emit('dislike post', {
-				'id': data['id'],
-				'dislike': post['hate'],
-				'order': post['order']
-			}, room=data['room'])
-	else:
-		print "disliked post not found"
-
 api.add_resource(PostListAPI, '/api/posts', endpoint='posts')
 api.add_resource(PostAPI, '/api/posts/<ObjectId:id>', endpoint='post')
 api.add_resource(ReplyListAPI, '/api/replies', endpoint='replies')
 api.add_resource(ReplyAPI, '/api/replies/<ObjectId:id>', endpoint='reply')
 
 if __name__ == '__main__':
-	#app.run(debug=True, host='0.0.0.0')
-	socketio.run(app, host='0.0.0.0')
+	app.run(debug=True, host='0.0.0.0')
+	#socketio.run(app, host='0.0.0.0')
 

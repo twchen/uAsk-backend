@@ -2,9 +2,10 @@
 
 todomvc.factory("RESTfulAPI", ['$resource', 'socketFactory', function($resource, socketFactory)
 {
-    var serverURL = 'http://54.254.251.203:5000';
-    //    var serverURL = 'http://52.76.51.251:5000';
-	var baseURL = serverURL + '/api/';
+    //  var serverURL = 'http://52.76.51.251'; Meluo's API
+    //var serverURL = 'http://54.254.251.203';
+    var serverURL = 'http://54.169.201.112';
+	var baseURL = serverURL + ':5000/api/';
 
 	var api = {};
 
@@ -30,12 +31,12 @@ todomvc.factory("RESTfulAPI", ['$resource', 'socketFactory', function($resource,
 
 	api.posts = [];
 	api.idPostMap = {};
-	api.socket = socketFactory({ioSocket: io.connect(serverURL)});
-	api.socket.on('new post', function(data){
-		var post = angular.fromJson(data);
-		post.reply = [];
-		api.posts.splice(0, 0, post);
-		api.idPostMap[post._id] = post;
+	api.socket = socketFactory({ioSocket: io.connect(serverURL + ':3000')});
+	api.socket.on('new post', function(postId){
+		api.postResource.get({id: postId}, function(post){
+			api.posts.splice(0, 0, post);
+			api.idPostMap[post._id] = post;
+		});
 	});
 
 	api.socket.on('del post', function(id){
@@ -74,11 +75,10 @@ todomvc.factory("RESTfulAPI", ['$resource', 'socketFactory', function($resource,
 	api.postQuery = function(params){
 		api.posts = api.postResource.query(params, function(){
 			api.posts.forEach(function(post){
-				post.reply = api.replyResource.query({postId: post._id});
 				api.idPostMap[post._id] = post;
 			});
 		});
-		api.socket.emit('join', {room: params.roomName});
+		api.socket.emit('join', params.roomName);
 		api.posts.$add = api.addPost;
 		api.posts.$save = api.updatePost;
 		api.posts.$remove = api.removePost;
@@ -95,7 +95,9 @@ todomvc.factory("RESTfulAPI", ['$resource', 'socketFactory', function($resource,
 	api.addPost = function(post) {
 		api.postResource.save(post, function(post){
 			post.reply = [];
-			//api.posts.splice(0, 0, post);
+			api.posts.splice(0, 0, post);
+			api.idPostMap[post._id] = post;
+			api.socket.emit('new post', {id: post._id, room: post.roomName});
 		});
 	};
 	
@@ -115,11 +117,11 @@ todomvc.factory("RESTfulAPI", ['$resource', 'socketFactory', function($resource,
 	};
 
 	api.likePost = function(post) {
-		api.socket.emit('like post', {room: post.roomName, id: post._id});
+		api.socket.emit('like post', post._id);
 	};
 
 	api.dislikePost = function(post) {
-		api.socket.emit('dislike post', {room: post.roomName, id: post._id});
+		api.socket.emit('dislike post', post._id);
 	};
 
 	api.addReply = function(post, reply) {
