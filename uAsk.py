@@ -1,4 +1,4 @@
-from flask import Flask, request, abort,jsnotify
+from flask import Flask, request, abort, jsonify
 from flask.ext.restful import Api, Resource, reqparse
 from flask.ext.pymongo import PyMongo
 from flask.ext.cors import CORS
@@ -46,8 +46,8 @@ class UserAPI(Resource):
 		username = args['username'] #args is what I get
 		passwd = args['password']
 
-		temp = request.args.get('function', 'login')
-		if 	temp == 'signup' :#qy send a login json, I have to check and tell him whether the username exists already. If exist, return false; Else, insert and return true.
+		option = request.args.get('option', 'login')
+		if option == 'signup':#qy send a login json, I have to check and tell him whether the username exists already. If exist, return false; Else, insert and return true.
 			cursor = mongo.db.users.find_one({'username':username})
 			if cursor:
 				return jsonify({'result': False})#username already exists
@@ -55,7 +55,7 @@ class UserAPI(Resource):
 				mongo.db.users.insert(args)
 				return jsonify({'result': True})
 
-		elif temp == 'login':#qy send a login json, I have to check and tell him whether login successfully
+		elif option == 'login':#qy send a login json, I have to check and tell him whether login successfully
 			cursor = mongo.db.users.find_one({'username':username , 'password' :passwd})
 			if cursor:
 				return jsonify({'result': True})#login success
@@ -70,17 +70,17 @@ class BasePostAPI(Resource):
 		self.reqparse.add_argument('head', type=str, required=required, location='json')
 		self.reqparse.add_argument('headLastChar', type=str, required=required, location='json')
 		self.reqparse.add_argument('desc', type=str, required=required, location='json')
+		self.reqparse.add_argument('timestamp', type=int, required=required, location='json')
+		self.reqparse.add_argument('username', type=str, default='anonymous', location='json')
+		self.reqparse.add_argument('anonymous', type=bool, default=False, location='json')
 		self.reqparse.add_argument('linkedDesc', type=str, default='', location='json')
 		self.reqparse.add_argument('completed', type=bool, default=False, location='json')
-		self.reqparse.add_argument('timestamp', type=int, required=required, location='json')
-		#self.reqparse.add_argument('tags', type=list, default=[], location='json')
 		self.reqparse.add_argument('tags', type=str, default='', location='json')
 		self.reqparse.add_argument('echo', type=int, default=0, location='json')
 		self.reqparse.add_argument('hate', type=int, default=0, location='json')
 		self.reqparse.add_argument('preMsg', type=str, default='<pre> </pre>', location='json')
 		self.reqparse.add_argument('new_reply', type=str, default='', location='json')
 		self.reqparse.add_argument('order', type=int, default=0, location='json')
-		#self.reqparse.add_argument('dislike', type=int, required=required, location='json')
 		self.reqparse.add_argument('image', type=str, default='', location='json')
 		super(BasePostAPI, self).__init__()
 
@@ -92,12 +92,16 @@ class PostListAPI(BasePostAPI):
 	def get(self):
 		# get roomName from the parameter list, default 'all'
 		roomName = request.args.get('roomName', 'all')
-		sortBy = request.args.get('sortBy', 'echo') # echo means numOfLikes
-		order = request.args.get('order', 1, type=int)
+		sortBy = request.args.getlist('sortBy', type=str)
+		order = request.args.getlist('order', type=int)
+		sortList = list(zip(sortBy, order))
+		if not sortList:
+			sortList = [('order', 1)]
 		limit = request.args.get('limit', 10000, type=int)
 		startTime = request.args.get('startTime', type=int)
 		endTime = request.args.get('endTime', type=int)
 		searchContent = request.args.get('content', type=str)
+		username = request.args.get('username', type=str)
 		query = []
 		if roomName != 'all':
 			query.append({'roomName': roomName})
@@ -107,9 +111,10 @@ class PostListAPI(BasePostAPI):
 			query.append({'timestamp': {'$lte': endTime}})
 		if searchContent:
 			query.append({'wholeMsg': {'$regex': '.*' + searchContent + '.*'}})
-			print searchContent
+		if username:
+			query.append({'username': username})
 		query = {'$and': query} if query else {}
-		cursor = mongo.db.posts.find(query).sort([(sortBy, order)]).limit(limit)
+		cursor = mongo.db.posts.find(query).sort(sortList).limit(limit)
 		posts = list(cursor)
 		for post in posts:
 			post['reply'] = mongo.db.replies.find({'postId': post['_id']}).sort([('timestamp', 1)])
@@ -141,7 +146,10 @@ class PostAPI(BasePostAPI):
 
 	# update post with id
 	def put(self, id):
-		post = mongo.db.posts.find_one({'_id': id})
+		username = request.args.get('username')
+		if not username:
+			return make_response(jsonify({"error": "login required"}), 401)
+		post = mongo.db.posts.find_one({'_id': id, 'username': username})
 		if not post:
 			abort(404)
 		args = self.reqparse.parse_args()
@@ -154,8 +162,14 @@ class PostAPI(BasePostAPI):
 
 	# delete post with id
 	def delete(self, id):
-		ret = mongo.db.posts.remove({'_id': id})
-		return ret
+		username = request.args.get('username')
+		if not username:
+			return make_response(jsonify({"error": "login required"}), 401)
+		ret = mongo.db.posts.remove({'_id': id, 'username': username})
+		if ret['ok'] == 1 and ret['n'] == 1:
+			return jsonify({"result": True})
+		else:
+			return jsonify({"result": False})
 
 class ReplyListAPI(Resource):
 	def __init__(self):
@@ -163,6 +177,8 @@ class ReplyListAPI(Resource):
 		self.reqparse.add_argument('postId', type=ObjectId, required=True, location='json')
 		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
 		self.reqparse.add_argument('timestamp', type=int, required=True, location='json')
+		self.reqparse.add_argument('username', type=str, default='anonymous', location='json')
+		self.reqparse.add_argument('anonymous', type=bool, default=False, location='json')
 		super(ReplyListAPI, self).__init__()
 
 	def get(self):
@@ -194,8 +210,11 @@ class ReplyAPI(Resource):
 			return reply
 
 	def put(self, id):
+		username = request.args.get('username')
+		if not username:
+			return make_response(jsonify({"error": "login required"}), 401)
 		args = self.reqparse.parse_args()
-		reply = mongo.db.replies.find_one({'_id': id})
+		reply = mongo.db.replies.find_one({'_id': id, 'username': username})
 		if not reply:
 			abort(404)
 		for k, v in args.iteritems():
@@ -205,11 +224,14 @@ class ReplyAPI(Resource):
 		return reply
 
 	def delete(self, id):
-		reply = mongo.db.replies.find({'_id': id})
-		if not reply:
-			abort(404)
-		ret = mongo.db.replies.remove({'_id': id})
-		return ret
+		username = request.args.get('username')
+		if not username:
+			return make_response(jsonify({"error": "login required"}), 401)
+		ret = mongo.db.replies.remove({'_id': id, 'username': username})
+		if ret['ok'] == 1 and ret['n'] == 1:
+			return jsonify({"result": True})
+		else:
+			return jsonify({"result": False})
 
 api.add_resource(PostListAPI, '/api/posts', endpoint='posts')
 api.add_resource(PostAPI, '/api/posts/<ObjectId:id>', endpoint='post')
@@ -218,6 +240,6 @@ api.add_resource(ReplyAPI, '/api/replies/<ObjectId:id>', endpoint='reply')
 api.add_resource(UserAPI, '/api/users', endpoint='users')
 
 if __name__ == '__main__':
-	app.run(debug=True, host='0.0.0.0')
+	app.run(debug=True, host='0.0.0.0', port=4000)
 	#socketio.run(app, host='0.0.0.0')
 
