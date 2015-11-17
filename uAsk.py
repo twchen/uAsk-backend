@@ -118,7 +118,9 @@ class PostListAPI(BasePostAPI):
 		posts = list(cursor)
 		for post in posts:
 			post['reply'] = mongo.db.replies.find({'postId': post['_id']}).sort([('timestamp', 1)])
-		return make_response(json_util.dumps(posts), 200)
+		resp = make_response(json_util.dumps(posts), 200)
+		resp.headers['Content-Type'] = 'application/json'
+		return resp
 
 	# create a new post
 	def post(self):
@@ -140,7 +142,7 @@ class PostAPI(BasePostAPI):
 	def get(self, id):
 		post = mongo.db.posts.find_one({'_id': id})
 		if not post:
-			abort(404)
+			return make_response(jsonify({'error': 'post not found'}), 404)
 		post['reply'] = mongo.db.replies.find({'postId': post['_id']}).sort([('timestamp', 1)])
 		return post
 
@@ -151,7 +153,7 @@ class PostAPI(BasePostAPI):
 			return make_response(jsonify({"error": "login required"}), 401)
 		post = mongo.db.posts.find_one({'_id': id, 'username': username})
 		if not post:
-			abort(404)
+			return make_response(jsonify({'error': 'post not found'}), 404)
 		args = self.reqparse.parse_args()
 		for k, v in args.iteritems():
 			if v != None:
@@ -211,7 +213,7 @@ class ReplyAPI(Resource):
 	def get(self, id):
 		reply = mongo.db.replies.find_one({'_id': id})
 		if not reply:
-			abort(404)
+			return make_response(jsonify({'error': 'reply not found'}), 404)
 		else:
 			return reply
 
@@ -222,7 +224,7 @@ class ReplyAPI(Resource):
 		args = self.reqparse.parse_args()
 		reply = mongo.db.replies.find_one({'_id': id, 'username': username})
 		if not reply:
-			abort(404)
+			return make_response(jsonify({'error': 'post not found'}), 404)
 		for k, v in args.iteritems():
 			if v != None:
 				reply[k] = v
