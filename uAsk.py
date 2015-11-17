@@ -71,7 +71,7 @@ class BasePostAPI(Resource):
 		self.reqparse.add_argument('headLastChar', type=str, required=required, location='json')
 		self.reqparse.add_argument('desc', type=str, required=required, location='json')
 		self.reqparse.add_argument('timestamp', type=int, required=required, location='json')
-		self.reqparse.add_argument('username', type=str, default='anonymous', location='json')
+		self.reqparse.add_argument('username', type=str, default='Anonymous', location='json')
 		self.reqparse.add_argument('anonymous', type=bool, default=False, location='json')
 		self.reqparse.add_argument('linkedDesc', type=str, default='', location='json')
 		self.reqparse.add_argument('completed', type=bool, default=False, location='json')
@@ -167,6 +167,7 @@ class PostAPI(BasePostAPI):
 			return make_response(jsonify({"error": "login required"}), 401)
 		ret = mongo.db.posts.remove({'_id': id, 'username': username})
 		if ret['ok'] == 1 and ret['n'] == 1:
+			mongo.db.replies.remove({'postId': id})
 			return jsonify({"result": True})
 		else:
 			return jsonify({"result": False})
@@ -177,14 +178,19 @@ class ReplyListAPI(Resource):
 		self.reqparse.add_argument('postId', type=ObjectId, required=True, location='json')
 		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
 		self.reqparse.add_argument('timestamp', type=int, required=True, location='json')
-		self.reqparse.add_argument('username', type=str, default='anonymous', location='json')
+		self.reqparse.add_argument('username', type=str, default='Anonymous', location='json')
 		self.reqparse.add_argument('anonymous', type=bool, default=False, location='json')
 		super(ReplyListAPI, self).__init__()
 
 	def get(self):
 		postId = request.args.get('postId', type=ObjectId)
+		username = request.args.get('username', type=str)
 		# allow null postId, i.e. get all replies
-		query = {} if not postId else {'postId': postId}
+		query = {}
+		if postId:
+			query['postId'] = postId
+		if username:
+			query['username'] = username
 		cursor = mongo.db.replies.find(query).sort([('timestamp', 1)])
 		return cursor
 
@@ -240,6 +246,6 @@ api.add_resource(ReplyAPI, '/api/replies/<ObjectId:id>', endpoint='reply')
 api.add_resource(UserAPI, '/api/users', endpoint='users')
 
 if __name__ == '__main__':
-	app.run(debug=True, host='0.0.0.0', port=4000)
+	app.run(debug=True, host='0.0.0.0', port=5000)
 	#socketio.run(app, host='0.0.0.0')
 

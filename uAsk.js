@@ -35,6 +35,7 @@ io.on('connection', function(socket){
 		console.log('client joined room: ' + room);
 	});
 	socket.on('new post', function(data){
+		// new post is only sent to other clients, not including the original emitter
 		socket.to(data.room).emit('new post', data.id);
 	});
 /*
@@ -75,7 +76,7 @@ io.on('connection', function(socket){
 		mongo.connect(url, function(err, db) {
 			assert.equal(err, null);
 			findPostById(db, postId, function(post) {
-				post.hate -= 1;
+				post.hate += 1;
 				post.order += 1;
 				io.sockets.in(post.roomName).emit('dislike post', {id: post._id, dislike: post.hate, order: post.order});
 				updatePost(db, post, function() {
