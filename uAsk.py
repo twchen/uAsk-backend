@@ -115,9 +115,10 @@ class PostListAPI(BasePostAPI):
 			query.append({'username': username})
 		query = {'$and': query} if query else {}
 		cursor = mongo.db.posts.find(query).sort(sortList).limit(limit)
-		posts = list(cursor)
-		for post in posts:
+		posts = []
+		for post in cursor:
 			post['reply'] = mongo.db.replies.find({'postId': post['_id']}).sort([('timestamp', 1)])
+			posts.append(post)
 		resp = make_response(json_util.dumps(posts), 200)
 		resp.headers['Content-Type'] = 'application/json'
 		return resp
