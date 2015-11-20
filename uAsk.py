@@ -37,8 +37,8 @@ mongo = PyMongo(app)
 class UserAPI(Resource):
 	def __init__(self):
 		self.reqparse = reqparse.RequestParser()
-		self.reqparse.add_argument('username', type=str, required=True, location='json')
-		self.reqparse.add_argument('password', type=str, required=True, location='json')
+		self.reqparse.add_argument('username', required=True, location='json')
+		self.reqparse.add_argument('password', required=True, location='json')
 		super(UserAPI, self).__init__()
 
 	def post(self):
@@ -65,21 +65,21 @@ class UserAPI(Resource):
 class BasePostAPI(Resource):
 	def __init__(self, required):
 		self.reqparse = reqparse.RequestParser()
-		self.reqparse.add_argument('roomName', type=str, required=required, location='json')
-		self.reqparse.add_argument('wholeMsg', type=str, required=required, location='json')
-		self.reqparse.add_argument('head', type=str, required=required, location='json')
-		self.reqparse.add_argument('headLastChar', type=str, required=required, location='json')
-		self.reqparse.add_argument('desc', type=str, required=required, location='json')
+		self.reqparse.add_argument('roomName', required=required, location='json')
+		self.reqparse.add_argument('wholeMsg', required=required, location='json')
+		self.reqparse.add_argument('head', required=required, location='json')
+		self.reqparse.add_argument('headLastChar', required=required, location='json')
+		self.reqparse.add_argument('desc', required=required, location='json')
 		self.reqparse.add_argument('timestamp', type=int, required=required, location='json')
-		self.reqparse.add_argument('username', type=str, default='Anonymous', location='json')
+		self.reqparse.add_argument('username', default='Anonymous', location='json')
 		self.reqparse.add_argument('anonymous', type=bool, default=False, location='json')
-		self.reqparse.add_argument('linkedDesc', type=str, default='', location='json')
+		self.reqparse.add_argument('linkedDesc', default='', location='json')
 		self.reqparse.add_argument('completed', type=bool, default=False, location='json')
-		self.reqparse.add_argument('tags', type=str, default='', location='json')
+		self.reqparse.add_argument('tags', default='', location='json')
 		self.reqparse.add_argument('echo', type=int, default=0, location='json')
 		self.reqparse.add_argument('hate', type=int, default=0, location='json')
-		self.reqparse.add_argument('preMsg', type=str, default='<pre> </pre>', location='json')
-		self.reqparse.add_argument('new_reply', type=str, default='', location='json')
+		self.reqparse.add_argument('preMsg', default='<pre> </pre>', location='json')
+		self.reqparse.add_argument('new_reply', default='', location='json')
 		self.reqparse.add_argument('order', type=int, default=0, location='json')
 		self.reqparse.add_argument('image', type=str, default='', location='json')
 		super(BasePostAPI, self).__init__()
@@ -100,8 +100,8 @@ class PostListAPI(BasePostAPI):
 		limit = request.args.get('limit', 10000, type=int)
 		startTime = request.args.get('startTime', type=int)
 		endTime = request.args.get('endTime', type=int)
-		searchContent = request.args.get('content', type=str)
-		username = request.args.get('username', type=str)
+		searchContent = request.args.get('content', type=unicode)
+		username = request.args.get('username', type=unicode)
 		query = []
 		if roomName != 'all':
 			query.append({'roomName': roomName})
@@ -179,15 +179,15 @@ class ReplyListAPI(Resource):
 	def __init__(self):
 		self.reqparse = reqparse.RequestParser()
 		self.reqparse.add_argument('postId', type=ObjectId, required=True, location='json')
-		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
+		self.reqparse.add_argument('wholeMsg', required=True, location='json')
 		self.reqparse.add_argument('timestamp', type=int, required=True, location='json')
-		self.reqparse.add_argument('username', type=str, default='Anonymous', location='json')
+		self.reqparse.add_argument('username', default='Anonymous', location='json')
 		self.reqparse.add_argument('anonymous', type=bool, default=False, location='json')
 		super(ReplyListAPI, self).__init__()
 
 	def get(self):
 		postId = request.args.get('postId', type=ObjectId)
-		username = request.args.get('username', type=str)
+		username = request.args.get('username', type=unicode)
 		# allow null postId, i.e. get all replies
 		query = {}
 		if postId:
@@ -207,8 +207,8 @@ class ReplyAPI(Resource):
 	def __init__(self):
 		self.reqparse = reqparse.RequestParser()
 		self.reqparse.add_argument('postId', type=ObjectId, required=False, location='json')
-		self.reqparse.add_argument('wholeMsg', type=str, required=True, location='json')
-		self.reqparse.add_argument('timestamp', type=str, required=False, location='json')
+		self.reqparse.add_argument('wholeMsg', required=True, location='json')
+		self.reqparse.add_argument('timestamp', type=int, required=False, location='json')
 		super(ReplyAPI, self).__init__()
 
 	def get(self, id):
@@ -219,7 +219,7 @@ class ReplyAPI(Resource):
 			return reply
 
 	def put(self, id):
-		username = request.args.get('username')
+		username = request.args.get('username', type=unicode)
 		if not username:
 			return make_response(jsonify({"error": "login required"}), 401)
 		args = self.reqparse.parse_args()
@@ -233,7 +233,7 @@ class ReplyAPI(Resource):
 		return reply
 
 	def delete(self, id):
-		username = request.args.get('username')
+		username = request.args.get('username', type=unicode)
 		if not username:
 			return make_response(jsonify({"error": "login required"}), 401)
 		ret = mongo.db.replies.remove({'_id': id, 'username': username})
